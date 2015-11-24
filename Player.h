@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <winsock2.h>
 
 enum MOVES { // Possible moves player can take can be extended later.
 	PASS,
@@ -9,7 +10,7 @@ enum MOVES { // Possible moves player can take can be extended later.
 class Player
 {
 public:
-	Player();
+	Player(SOCKET* socket);
 	// Player(int money) : money(money), handvalue(0), betvalue(1) {};
 	virtual ~Player() {};
 
@@ -38,4 +39,8 @@ public:
 
 	unsigned ID; // Unique ID used to differentiate players.
 	static unsigned ID_COUNTER; // Increment ID during constructor.
+
+	SOCKET* ClientSocket;
+
+	void CloseConnection();
 };

@@ -1,7 +1,7 @@
 #include "Network.h"
 #include <iostream>
 
-Network::Network() : ListenSocket(INVALID_SOCKET), ClientSocket(INVALID_SOCKET)
+Network::Network() : ListenSocket(INVALID_SOCKET)
 {
 }
 
@@ -70,15 +70,6 @@ bool Network::CreateHost()
 
 	std::cout << "Waiting for players." << std::endl;
 
-	ClientSocket = accept(ListenSocket, NULL, NULL); // Accept a client socket.
-	if(ClientSocket == INVALID_SOCKET)
-	{
-		printf("accept failed with error: %d\n", WSAGetLastError());
-		closesocket(ListenSocket);
-		WSACleanup();
-		return false;
-	}
-
 	closesocket(ListenSocket); // No longer need server socket.
 
 	// Receive until the peer shuts down the connection
@@ -107,16 +98,29 @@ bool Network::CreateHost()
 		}
 
 	} while(iResult > 0);
+}
 
-	iResult = shutdown(ClientSocket, SD_SEND); // Shutdown the connection since we're done.
-	if(iResult == SOCKET_ERROR)
+void Network::ListenConnection()
+{
+	while(true)
 	{
-		printf("shutdown failed with error: %d\n", WSAGetLastError());
-		closesocket(ClientSocket);
-		WSACleanup();
-		return 1;
-	}
+		SOCKET* ClientSocket = new SOCKET(INVALID_SOCKET);
 
-	closesocket(ClientSocket);
+		*ClientSocket = accept(ListenSocket, NULL, NULL); // Wait for client socket.
+
+		if(*ClientSocket == INVALID_SOCKET) // Error initialising the socket.
+			printf("ListenConnection failed with error: %d\n", WSAGetLastError());
+		else
+			players.push_back(new Player(ClientSocket)); // Create new player upon successful connection.
+	}
+}
+
+void Network::ListenMessage()
+{
+}
+
+void Network::Clean()
+{
+	// Possible functions needed to clean network functionality.
 	WSACleanup();
 }

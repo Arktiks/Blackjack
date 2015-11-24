@@ -4,7 +4,7 @@
 
 unsigned Player::ID_COUNTER = 0;
 
-Player::Player() : money(10), handvalue(0), betvalue(1), ID(0)
+Player::Player(SOCKET* socket) : money(10), handvalue(0), betvalue(1), ID(0), ClientSocket(socket)
 {
 	ID = ID_COUNTER;
 	ID_COUNTER++;
@@ -54,4 +54,13 @@ int Player::AskMove()
 void Player::Print()
 {
 	std::cout << "Player " << ID << " has " << money << " money." << std::endl;
+}
+
+void Player::CloseConnection()
+{
+	int iResult = shutdown(*ClientSocket, SD_SEND); // Shutdown the connection since we're done.
+	if(iResult == SOCKET_ERROR)
+		std::cout << "CloseConnection on ID(" << ID << ") failed: " << WSAGetLastError();
+
+	closesocket(*ClientSocket);
 }

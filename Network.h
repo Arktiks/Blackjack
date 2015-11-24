@@ -11,16 +11,26 @@
 #define DEFAULT_BUFLEN 10
 #define DEFAULT_PORT "7500"
 
+#include <vector>
+#include <mutex>
+#include "Player.h"
+
 class Network
 {
 public:
 	Network();
 
-	bool CreateHost();
+	bool CreateHost(); // Initialise the listening socket.
 
+	void ListenConnection();
 
+	void ListenMessage();
+
+	void Clean();
 
 	SOCKET ListenSocket;
 
-	SOCKET ClientSocket;
+	std::vector<Player*> players;
+
+	//SOCKET ClientSocket;
 };

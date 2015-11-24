@@ -1,6 +1,8 @@
 #include "Player.h"
 #include "Dealer.h"
+#include "Network.h"
 #include <iostream>
+#include <thread>
 
 void AskBet(Player* player); // How much player wants to bet from his available money.
 void PlayTurn(Player* player); // Play turn of player until he passes or handvalue exceeds 21.
@@ -8,11 +10,14 @@ void UpdatePlayer(Player* player, bool won); // Update money of players and kick
 
 std::vector<Player*> players; // Players who have connected to game.
 Dealer dealer; // Handvalues are compared to dealers to determine winners. Also contains the standard 52-card deck.
+Network network; // Handles networking and stores players.
 
 int main()
 {
-	if(!dealer.CreateHost())
+	if(!network.CreateHost())
 		return 1;
+
+	std::thread t1(network.ListenConnection());
 
 	dealer.MakeDeck();
 	players.push_back(new Player);
