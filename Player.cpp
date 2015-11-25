@@ -64,3 +64,8 @@ void Player::CloseConnection()
 
 	closesocket(*ClientSocket);
 }
+
+SOCKET* Player::GetSocket()
+{
+	return ClientSocket;
+}

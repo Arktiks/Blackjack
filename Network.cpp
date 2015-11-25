@@ -70,34 +70,7 @@ bool Network::CreateHost()
 
 	std::cout << "Waiting for players." << std::endl;
 
-	closesocket(ListenSocket); // No longer need server socket.
-
-	// Receive until the peer shuts down the connection
-	do {
-		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
-		if(iResult > 0) {
-			printf("Bytes received: %d\n", iResult);
-
-			// Echo the buffer back to the sender
-			iSendResult = send(ClientSocket, recvbuf, iResult, 0);
-			if(iSendResult == SOCKET_ERROR) {
-				printf("send failed with error: %d\n", WSAGetLastError());
-				closesocket(ClientSocket);
-				WSACleanup();
-				return 1;
-			}
-			printf("Bytes sent: %d\n", iSendResult);
-		}
-		else if(iResult == 0)
-			printf("Connection closing...\n");
-		else  {
-			printf("recv failed with error: %d\n", WSAGetLastError());
-			closesocket(ClientSocket);
-			WSACleanup();
-			return 1;
-		}
-
-	} while(iResult > 0);
+	// closesocket(ListenSocket); // No longer need server socket.
 }
 
 void Network::ListenConnection()
@@ -111,16 +84,74 @@ void Network::ListenConnection()
 		if(*ClientSocket == INVALID_SOCKET) // Error initialising the socket.
 			printf("ListenConnection failed with error: %d\n", WSAGetLastError());
 		else
-			players.push_back(new Player(ClientSocket)); // Create new player upon successful connection.
+		{
+			Player* player = new Player(ClientSocket);
+			players.push_back(player); // Create new player upon successful connection.
+			// Start new ListenMessage thread.
+		}
 	}
 }
 
-void Network::ListenMessage()
+void Network::ListenMessage(Player* player)
 {
+	std::cout << "Starting ListenMessage for player (" << player->ID << ")." << std::endl;
+
+	int iResult = 0, iSendResult = 0; // Variables for testing message receiving and sending.
+	char recvbuf[DEFAULT_BUFLEN]; // Buffer for messages.
+	int recvbuflen = DEFAULT_BUFLEN; // Length of buffer.
+
+	// Condition needs to be remade later!
+	while(true) // Receive messages until the peer shuts down the connection.
+	{
+		iResult = recv(*player->GetSocket(), recvbuf, recvbuflen, 0);
+		if(iResult > 0) // If receiving message was successfull.
+		{
+			printf("Bytes received: %d\n", iResult);
+
+			iSendResult = send(*player->GetSocket(), recvbuf, iResult, 0); // Echo the buffer back to the sender.
+			if(iSendResult == SOCKET_ERROR)
+			{
+				std::cout << "Send failed for player (" << player->ID << "): " << WSAGetLastError() << std::endl;
+				//closesocket(ClientSocket);
+				//WSACleanup();
+				//return 1;
+			}
+			printf("Bytes sent: %d\n", iSendResult);
+		}
+		else if(iResult == 0)
+		{
+			std::cout << "Connection closing for player (" << player->ID << ")." << std::endl;
+			//printf("Connection closing...\n");
+			// Need to add cleaning later.
+		}
+		else 
+		{
+			std::cout << "Receive failed for player (" << player->ID << "): " << WSAGetLastError() << std::endl;
+			//printf("recv failed with error: %d\n", WSAGetLastError());
+			//closesocket(ClientSocket);
+			//WSACleanup();
+			//return 1;
+		}
+
+		ClearBuffer(recvbuf);
+	}
 }
+
+/*void Network::ListenMessage() // Second prototype.
+{
+	for(auto it = players.begin(); it != players.end(); it++)
+	{
+	}
+}*/
 
 void Network::Clean()
 {
 	// Possible functions needed to clean network functionality.
 	WSACleanup();
+}
+
+void Network::ClearBuffer(char(&buffer)[10])
+{
+	for(int i = 0; i < DEFAULT_BUFLEN; i++)
+		buffer[i] = '\0';
 }

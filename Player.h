@@ -43,4 +43,6 @@ public:
 	SOCKET* ClientSocket;
 
 	void CloseConnection();
+
+	SOCKET* GetSocket(); // Return handle to SOCKET.
 };

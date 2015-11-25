@@ -22,11 +22,13 @@ public:
 
 	bool CreateHost(); // Initialise the listening socket.
 
-	void ListenConnection();
+	void ListenConnection(); // Listen for new clients attempting to connect to server.
 
-	void ListenMessage();
+	void ListenMessage(Player* player); // Listen for possible messages from established clients.
 
 	void Clean();
+
+	void ClearBuffer(char (&buffer)[10]);
 
 	SOCKET ListenSocket;
 
