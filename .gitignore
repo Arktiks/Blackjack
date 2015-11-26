@@ -57,6 +57,7 @@ build/
 bld/
 [Bb]in/
 [Oo]bj/
+Executable/
 
 *_i.c
 *_p.c
@@ -82,3 +83,16 @@ bld/
 *.pidb
 *.svclog
 *.scc
+
+# Visual C++ cache files
+ipch/
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx

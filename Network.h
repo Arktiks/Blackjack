@@ -1,18 +1,12 @@
 #pragma once
 #define WIN32_LEAN_AND_MEAN
-
-#include <windows.h> // Includes for TCP networking.
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-#pragma comment (lib, "Ws2_32.lib")
-#define DEFAULT_BUFLEN 10
+#define DEFAULT_BUFLEN 80
 #define DEFAULT_PORT "7500"
 
+#pragma comment (lib, "Ws2_32.lib")
+
+#include <winsock2.h>
 #include <vector>
-#include <mutex>
 #include "Player.h"
 
 class Network
@@ -26,13 +20,13 @@ public:
 
 	void ListenMessage(Player* player); // Listen for possible messages from established clients.
 
-	void Clean();
+	void Clean(); // Clean up networking functionality.
 
-	void ClearBuffer(char (&buffer)[10]);
+	void ClearBuffer(char (&buffer)[10]); // Clear message buffer.
 
 	SOCKET ListenSocket;
 
 	std::vector<Player*> players;
 
-	//SOCKET ClientSocket;
+	int ConnectedPlayers(); // How many players have connected.
 };

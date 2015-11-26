@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-Dealer::Dealer() : Player()
+Dealer::Dealer() : Player(nullptr)
 {
 	MakeDeck();
 }

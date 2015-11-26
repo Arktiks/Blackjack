@@ -1,5 +1,13 @@
 #include "Network.h"
 #include <iostream>
+#include <thread>
+#include <mutex>
+#include <string>
+
+#include <windows.h> // Includes for TCP networking.
+#include <ws2tcpip.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 Network::Network() : ListenSocket(INVALID_SOCKET)
 {
@@ -12,10 +20,6 @@ bool Network::CreateHost()
 
 	struct addrinfo *result = NULL;
 	struct addrinfo hints;
-
-	int iSendResult;
-	char recvbuf[DEFAULT_BUFLEN];
-	int recvbuflen = DEFAULT_BUFLEN;
 
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData); // Initialize Winsock.
 	if(iResult != 0)
@@ -68,7 +72,8 @@ bool Network::CreateHost()
 		return false;
 	}
 
-	std::cout << "Waiting for players." << std::endl;
+	std::cout << "Waiting for players..." << std::endl;
+	return true;
 
 	// closesocket(ListenSocket); // No longer need server socket.
 }
@@ -87,14 +92,16 @@ void Network::ListenConnection()
 		{
 			Player* player = new Player(ClientSocket);
 			players.push_back(player); // Create new player upon successful connection.
-			// Start new ListenMessage thread.
+			std::cout << "New player connected ID(" << player->ID << ")." << std::endl;
+
+			std::thread message_thread(&Network::ListenMessage, this, player); // Start new thread for communication.
 		}
 	}
 }
 
 void Network::ListenMessage(Player* player)
 {
-	std::cout << "Starting ListenMessage for player (" << player->ID << ")." << std::endl;
+	std::cout << "Starting ListenMessage for ID(" << player->ID << ")." << std::endl;
 
 	int iResult = 0, iSendResult = 0; // Variables for testing message receiving and sending.
 	char recvbuf[DEFAULT_BUFLEN]; // Buffer for messages.
@@ -103,46 +110,40 @@ void Network::ListenMessage(Player* player)
 	// Condition needs to be remade later!
 	while(true) // Receive messages until the peer shuts down the connection.
 	{
-		iResult = recv(*player->GetSocket(), recvbuf, recvbuflen, 0);
+		iResult = recv(*player->GetSocket(), recvbuf, recvbuflen, 0); // Receive message from client.
+
 		if(iResult > 0) // If receiving message was successfull.
 		{
-			printf("Bytes received: %d\n", iResult);
+			//printf("Bytes received: %d\n", iResult); // How many bytes received from client.
 
-			iSendResult = send(*player->GetSocket(), recvbuf, iResult, 0); // Echo the buffer back to the sender.
-			if(iSendResult == SOCKET_ERROR)
-			{
-				std::cout << "Send failed for player (" << player->ID << "): " << WSAGetLastError() << std::endl;
-				//closesocket(ClientSocket);
-				//WSACleanup();
-				//return 1;
-			}
-			printf("Bytes sent: %d\n", iSendResult);
+			std::string message(recvbuf); // Make std::string out of received message.
+			int size = message.find('\0'); // Find first newline to determine real size.
+			message.resize(size);
+			std::cout << "(" << player->ID << "): " << message << std::endl; // Print received message.
+
+			//iSendResult = send(*player->GetSocket(), recvbuf, iResult, 0); // Echo the buffer back to the sender.
+			//if(iSendResult == SOCKET_ERROR)
+				//std::cout << "SEND failed to (" << player->ID << "): " << WSAGetLastError() << std::endl;
+
+			//if(iResult == iSendResult) // See if byte amounts match for received and sent.
+				//std::cout << "Connection established with ID(" << player->ID << ")." << std::endl;
+				//; // Temporary.
+			//else
+				//std::cout << "Possible connection problems with ID(" << player->ID << ")." << std::endl;
 		}
 		else if(iResult == 0)
 		{
-			std::cout << "Connection closing for player (" << player->ID << ")." << std::endl;
-			//printf("Connection closing...\n");
+			std::cout << "Connection closing for ID(" << player->ID << ")." << std::endl;
 			// Need to add cleaning later.
 		}
 		else 
 		{
-			std::cout << "Receive failed for player (" << player->ID << "): " << WSAGetLastError() << std::endl;
-			//printf("recv failed with error: %d\n", WSAGetLastError());
+			std::cout << "RECEIVE failed from ID(" << player->ID << ")." << std::endl;
 			//closesocket(ClientSocket);
 			//WSACleanup();
-			//return 1;
 		}
-
-		ClearBuffer(recvbuf);
 	}
 }
-
-/*void Network::ListenMessage() // Second prototype.
-{
-	for(auto it = players.begin(); it != players.end(); it++)
-	{
-	}
-}*/
 
 void Network::Clean()
 {
@@ -154,4 +155,9 @@ void Network::ClearBuffer(char(&buffer)[10])
 {
 	for(int i = 0; i < DEFAULT_BUFLEN; i++)
 		buffer[i] = '\0';
+}
+
+int Network::ConnectedPlayers()
+{
+	return players.size();
 }

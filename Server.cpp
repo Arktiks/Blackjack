@@ -3,6 +3,7 @@
 #include "Network.h"
 #include <iostream>
 #include <thread>
+#include <chrono>
 
 void AskBet(Player* player); // How much player wants to bet from his available money.
 void PlayTurn(Player* player); // Play turn of player until he passes or handvalue exceeds 21.
@@ -14,96 +15,102 @@ Network network; // Handles networking and stores players.
 
 int main()
 {
-	if(!network.CreateHost())
+	if(!network.CreateHost()) // Abort program if host listening socket can't be established.
 		return 1;
 
-	std::thread t1(network.ListenConnection());
+	std::thread listen_thread(&Network::ListenConnection, network); // Start listening for new players.
 
-	dealer.MakeDeck();
-	players.push_back(new Player);
-	players.push_back(new Player);
+	dealer.MakeDeck(); // Create deck of 52 cards.
 
-	while(true)
+	while(true) // Main gameloop.
 	{
-		if(dealer.deck.size() <= 15) // Remake deck if it's running out of cards.
+		if(network.ConnectedPlayers() >= 1) // If there are enough players start the round.
 		{
-			std::cout << "Making new deck of cards." << std::endl;
-			dealer.MakeDeck();
-		}
-
-		std::vector<Player*> round_players = players; // Players who will be playing this round.
-
-		/* Players place their bets. */
-		for(auto it = round_players.begin(); it != round_players.end(); it++)
-			AskBet((*it));
-
-		std::cout << "Game starts!" << std::endl;
-
-		/* Starting hand of dealer. */
-		dealer.AddCard(dealer.GiveCard());
-		dealer.AddCard(dealer.GiveCard());
-		std::cout << "Dealers starting hand is " << dealer.handvalue << "." << std::endl;
-		
-		/* Loop through the players. */
-		std::cout << "Starting player turns." << std::endl;
-		for(auto it = round_players.begin(); it < round_players.end();) // No incremental condition on loop.
-		{
-			PlayTurn((*it)); // Play turn normally.
-			if((*it)->handvalue >= 22) // In case player loses.
+			if(dealer.deck.size() <= 15) // Remake deck if it's running out of cards.
 			{
-				UpdatePlayer((*it), false); // Update players money.
-				it = round_players.erase(it); // Remove him from this round and update iterator.
+				std::cout << "Making new deck of cards." << std::endl;
+				dealer.MakeDeck();
 			}
-			else
-				it++;
-		}
 
-		if(round_players.empty()) // Every player bust already.
-		{
-			std::cout << "All players have bust!" << std::endl;
-			goto end;
-		}
+			std::vector<Player*> round_players = players; // Players who will be playing this round.
 
-		std::cout << "Starting dealers turns." << std::endl;
-		while(dealer.handvalue < 17)
-		{
-			int b = dealer.AskMove();
-			if(b == HIT)
-			{
-				std::cout << "Dealer hits." << std::endl;
-				dealer.AddCard(dealer.GiveCard());
-			}
-			else
-				break;
-		}
-		std::cout << "Ending dealers turn with " << dealer.handvalue << "." << std::endl;
-
-		if(dealer.handvalue >= 22) // If dealers busts everyone still on the round wins.
-		{
-			std::cout << "Dealer busts!" << std::endl;
+			/* Players place their bets. */
 			for(auto it = round_players.begin(); it != round_players.end(); it++)
-				UpdatePlayer((*it), true);
-			goto end; // No need to compare handvalues.
-		}
+				AskBet((*it));
 
-		// Compare dealer hand to player hands to determine winners.
-		for(auto it = round_players.begin(); it != round_players.end(); it++)
-		{
-			if(dealer.handvalue >= (*it)->handvalue) // Dealer wins if his handvalue is bigger or in case of tie.
-				UpdatePlayer((*it), false);
-			else // Player wins.
-				UpdatePlayer((*it), true);
-		}
+			std::cout << "Game starts!" << std::endl;
 
-	end: // Remove cards from players and end round.
-		dealer.ClearHand();
-		for(auto it = players.begin(); it != players.end(); it++)
-		{
-			(*it)->ClearHand();
-			(*it)->Print();
+			/* Starting hand of dealer. */
+			dealer.AddCard(dealer.GiveCard());
+			dealer.AddCard(dealer.GiveCard());
+			std::cout << "Dealers starting hand is " << dealer.handvalue << "." << std::endl;
+
+			/* Loop through the players. */
+			std::cout << "Starting player turns." << std::endl;
+			for(auto it = round_players.begin(); it < round_players.end();) // No incremental condition on loop.
+			{
+				PlayTurn((*it)); // Play turn normally.
+				if((*it)->handvalue >= 22) // In case player loses.
+				{
+					UpdatePlayer((*it), false); // Update players money.
+					it = round_players.erase(it); // Remove him from this round and update iterator.
+				}
+				else
+					it++;
+			}
+
+			if(round_players.empty()) // Every player bust already.
+			{
+				std::cout << "All players have bust!" << std::endl;
+				goto end;
+			}
+
+			std::cout << "Starting dealers turns." << std::endl;
+			while(dealer.handvalue < 17)
+			{
+				int b = dealer.AskMove();
+				if(b == HIT)
+				{
+					std::cout << "Dealer hits." << std::endl;
+					dealer.AddCard(dealer.GiveCard());
+				}
+				else
+					break;
+			}
+			std::cout << "Ending dealers turn with " << dealer.handvalue << "." << std::endl;
+
+			if(dealer.handvalue >= 22) // If dealers busts everyone still on the round wins.
+			{
+				std::cout << "Dealer busts!" << std::endl;
+				for(auto it = round_players.begin(); it != round_players.end(); it++)
+					UpdatePlayer((*it), true);
+				goto end; // No need to compare handvalues.
+			}
+
+			// Compare dealer hand to player hands to determine winners.
+			for(auto it = round_players.begin(); it != round_players.end(); it++)
+			{
+				if(dealer.handvalue >= (*it)->handvalue) // Dealer wins if his handvalue is bigger or in case of tie.
+					UpdatePlayer((*it), false);
+				else // Player wins.
+					UpdatePlayer((*it), true);
+			}
+
+		end: // Remove cards from players and end round.
+			dealer.ClearHand();
+			for(auto it = players.begin(); it != players.end(); it++)
+			{
+				(*it)->ClearHand();
+				(*it)->Print();
+			}
+			std::cout << "Round ends!" << std::endl;
+			std::cout << "-----------" << std::endl;
 		}
-		std::cout << "Round ends!" << std::endl;
-		std::cout << "-----------" << std::endl;
+		else // There are not enough players.
+		{
+			std::cout << "There are " << network.ConnectedPlayers() << " players connected." << std::endl;
+			std::this_thread::sleep_for(std::chrono::seconds(2));
+		}
 	}
 }
 
