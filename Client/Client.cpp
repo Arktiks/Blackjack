@@ -9,6 +9,7 @@
 #include <thread>
 #include <iostream>
 #include <string>
+#include <mutex>
 
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
@@ -16,12 +17,15 @@
 
 #define DEFAULT_BUFLEN 60
 #define DEFAULT_PORT "7500"
-#define DEFAULT_SERVER "127.0.0.1"
 
 void ReceiveMessages(SOCKET socket); // Receive messages from server.
-void SendMessages(std::string message); // Send messages to server with proper formatting.
+bool WriteMessage(); // Takes user input and sends it to server.
+void Error(); // Increase error count.
+
 SOCKET ConnectSocket = INVALID_SOCKET; // Socket used to connect to server.
 int errors = 0; // Keep threshold for amount of errors there can be sending messages.
+bool receiving = true; // Is client still receiving messages.
+std::mutex lock; // Safethread error handling.
 
 int main()
 {
@@ -83,16 +87,14 @@ int main()
 	else
 		std::cout << "Server connection established." << std::endl;
 
-	std::this_thread::sleep_for(std::chrono::seconds(2));
-
 	std::cout << "Sending confirmation message to server." << std::endl;
 
-	char sendbuf[] = "TEST";
+	char sendbuf[] = "CONFIRM CONNECTION!";
 	iResult = send(ConnectSocket, sendbuf, strlen(sendbuf), 0); // Send an initial buffer.
 
 	if(iResult == SOCKET_ERROR)
 	{
-		printf("send failed with error: %d\n", WSAGetLastError());
+		printf("SEND failed with error: %d\n", WSAGetLastError());
 		closesocket(ConnectSocket);
 		WSACleanup();
 		return 1;
@@ -100,93 +102,83 @@ int main()
 	else
 		std::cout << "Confirmation message was successfull." << std::endl;
 
-	//printf("Bytes Sent: %ld\n", iResult);
-
 	std::thread receive(ReceiveMessages, ConnectSocket); // Start thread for receiving messages.
+	receive.detach();
 
-	std::this_thread::sleep_for(std::chrono::seconds(2));
+	while(WriteMessage() == true && receiving); // Send messages to server.
 
-	
-
-	while(true) // Send messages.
-	{
-		std::string message;
-		std::cout << "Send message to server (max 10): " << std::endl;
-		fflush(stdin); // Flush std::cin buffer.
-
-		while(message.size() > 10 || message.size() == 0) // Confirm that message is valid.
-			std::getline(std::cin, message);
-
-		SendMessages(message);
-
-		if(errors >= 3) // There have been too many errors sending messages.
-		{
-			std::cout << "Lost connection to server." << std::endl;
-			fflush(stdin);
-			std::cin.get();
-			break;
-		}
-	}
-
-	shutdown(ConnectSocket, SD_SEND);
+	shutdown(ConnectSocket, SD_SEND); 
 	closesocket(ConnectSocket);
 	WSACleanup();
+
+	fflush(stdin);
+	std::cin.get();
 
 	return 0;
 }
 
 void ReceiveMessages(SOCKET socket)
 {
-	int iResult = 0; // Test if receive was successfull.
-	char recvbuf[DEFAULT_BUFLEN]; // Buffer for messages.
-	int recvbuflen = DEFAULT_BUFLEN; // Buffer length for messages.
-	int errors = 0;
-
 	while(true)
 	{
-		//iResult = recv(socket, recvbuf, recvbuflen, 0);
-		iResult = recv(socket, recvbuf, recvbuflen, 0);
+		char recvbuf[DEFAULT_BUFLEN] = {0}; // Buffer for messages.
 
-		std::string received_message(recvbuf);
-		int size = received_message.find('\0'); // Find newline.
-		received_message.resize(size); // Resize message to actual size.
+		int iResult = recv(socket, recvbuf, DEFAULT_BUFLEN, 0); // Blocking call for receiving messages.
 
 		if(iResult > 0) // Print the received message.
 		{
-			std::string message(recvbuf);
-			std::cout << message << std::endl;
-			//printf("Bytes received: %d\n", iResult);
+			printf("%s \n", recvbuf);
 		}
 		else if(iResult == 0)
 		{
-			printf("Connection closed!\n");
-			// Cleaning functions placeholder.
+			printf("Connection closed! \n");
+			receiving = false;
 			return;
 		}
 		else // Error receiving message from server.
 		{
-			errors++;
-			printf("RECEIVE failed with error: %d\n", WSAGetLastError());
-			std::this_thread::sleep_for(std::chrono::seconds(2));
+			Error();
+			printf("RECEIVE failed with error: %d \n", WSAGetLastError());
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
 
-		if(errors >= 3)
+		if(errors >= 3) // Too many connection errors, discontinue receiving messages.
 		{
+			receiving = false;
 			std::cout << "Stopping ReceiveMessages thread." << std::endl;
 			return;
 		}
 	}
 }
 
-void SendMessages(std::string message)
+bool WriteMessage()
 {
-	int size = message.size() + 1;
+	char sendbuf[DEFAULT_BUFLEN];
+	gets(sendbuf);
+	int iResult = send(ConnectSocket, sendbuf, DEFAULT_BUFLEN, 0);
 
-	char* send_buffer = new char[size];
-	//char send_buffer[size]; // Transform std::string back to char-array.
+	if(iResult == SOCKET_ERROR)
+	{
+		printf("SEND failed with error: %d \n", WSAGetLastError());
+		return false;
+	}
 
+	return true;
+}
+
+void Error()
+{
+	lock.lock();
+	errors++;
+	std::cout << "Problems with connection, increasing error count (" << errors << ")." << std::endl;
+	lock.unlock();
+}
+
+/*void SendMessages(std::string message)
+{
+	unsigned size = message.size(); // How long message is.
+	char* send_buffer = new char[size]; // Make message based on length.
 	strcpy(send_buffer, message.c_str());
-	send_buffer[size] = '\0'; // Make sure message has endline.
 
 	int iResult = send(ConnectSocket, send_buffer, size, 0); // Send the message.
 	if(iResult == SOCKET_ERROR)
@@ -197,4 +189,4 @@ void SendMessages(std::string message)
 	}
 
 	delete send_buffer;
-}
+}*/

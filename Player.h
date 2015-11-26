@@ -2,7 +2,7 @@
 #include <vector>
 #include <winsock2.h>
 
-enum MOVES { // Possible moves player can take can be extended later.
+enum MOVES { // Possible moves player can take - extendable for later.
 	PASS,
 	HIT
 };
@@ -10,9 +10,10 @@ enum MOVES { // Possible moves player can take can be extended later.
 class Player
 {
 public:
-	Player(SOCKET* socket);
-	// Player(int money) : money(money), handvalue(0), betvalue(1) {};
-	virtual ~Player() {};
+
+	Player(SOCKET* socket); // Players needs to be initialised with connection socket.
+
+	virtual ~Player();
 
 	/* Add card to players handcards.
 	* Return: New total value of hand. */
@@ -23,26 +24,25 @@ public:
 	* Return: Total value of hand. */
 	int CalculateHand();
 
-	/* Clear cards and reset handvalue.	*/
-	void ClearHand();
+	void ClearHand(); // Clear cards and reset handvalue.
 
-	/* Ask if player would like to HIT or PASS. */
-	virtual int AskMove();
+	virtual int AskMove(); // Ask if player would like to HIT or PASS.
 
-	/* Print player statistics. */
-	virtual void Print();
+	virtual void Print(); // Print player statistics.
+
+	SOCKET* GetSocket(); // Return handle to socket.
 
 	std::vector<int> cards; // Cards player has on his hand.
 	int money; // How much money player has left.
 	int handvalue; // Sum of current hand cards.
 	int betvalue; // How much player is betting on current round.
+	bool bet_set; // Has player succesfully set his bet.
+	bool pass; // Can player make any further moves.
 
 	unsigned ID; // Unique ID used to differentiate players.
 	static unsigned ID_COUNTER; // Increment ID during constructor.
 
+	bool lost_connection; // Has player lost connection to server.
+
 	SOCKET* ClientSocket;
-
-	void CloseConnection();
-
-	SOCKET* GetSocket(); // Return handle to SOCKET.
 };

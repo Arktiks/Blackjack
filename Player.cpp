@@ -4,10 +4,20 @@
 
 unsigned Player::ID_COUNTER = 0;
 
-Player::Player(SOCKET* socket) : money(10), handvalue(0), betvalue(1), ID(0), ClientSocket(socket)
+Player::Player(SOCKET* socket) : money(10), handvalue(0), betvalue(1), bet_set(false), pass(false),
+	ID(0), ClientSocket(socket), lost_connection(false)
 {
 	ID = ID_COUNTER;
 	ID_COUNTER++;
+}
+
+Player::~Player()
+{
+	int iResult = shutdown(*ClientSocket, SD_SEND); // Shutdown the connection since we're done.
+	if(iResult == SOCKET_ERROR)
+		std::cout << "CloseConnection on ID(" << ID << ") failed: " << WSAGetLastError();
+	closesocket(*ClientSocket);
+	delete ClientSocket;
 }
 
 int Player::AddCard(int card)
@@ -34,6 +44,8 @@ void Player::ClearHand()
 {
 	cards.clear();
 	handvalue = 0;
+	bet_set = false;
+	pass = false;
 }
 
 int Player::AskMove()
@@ -54,15 +66,6 @@ int Player::AskMove()
 void Player::Print()
 {
 	std::cout << "Player " << ID << " has " << money << " money." << std::endl;
-}
-
-void Player::CloseConnection()
-{
-	int iResult = shutdown(*ClientSocket, SD_SEND); // Shutdown the connection since we're done.
-	if(iResult == SOCKET_ERROR)
-		std::cout << "CloseConnection on ID(" << ID << ") failed: " << WSAGetLastError();
-
-	closesocket(*ClientSocket);
 }
 
 SOCKET* Player::GetSocket()
