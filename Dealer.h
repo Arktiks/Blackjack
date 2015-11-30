@@ -1,6 +1,7 @@
 #pragma once
 #include "Player.h"
 #include <vector>
+#include <mutex>
 
 class Dealer : public Player
 {
@@ -22,4 +23,6 @@ public:
 	int AskMove();
 
 	std::vector<int> deck; // Cards left on the deck.
+
+	std::mutex deck_lock;
 };

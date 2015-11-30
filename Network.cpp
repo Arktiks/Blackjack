@@ -9,18 +9,26 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define LOCK Network::lock
+#define PLAYERS Network::players
+
 std::vector<Player*> Network::players;
 SOCKET Network::ListenSocket;
 std::mutex* Network::lock = nullptr;
 
 Network::Network()
 {
-	lock = new std::mutex;
-	assert(lock);
+	if(lock == nullptr)
+	{
+		lock = new std::mutex;
+		assert(lock);
+	}
 }
 
 Network::Network(Network& network)
 {
+	lock = network.lock;
+	assert(lock);
 }
 
 bool Network::CreateHost() 
@@ -82,10 +90,8 @@ bool Network::CreateHost()
 		return false;
 	}
 
-	std::cout << "Waiting for players..." << std::endl;
+	std::cout << "Host succesfully initialised." << std::endl;
 	return true;
-
-	// closesocket(ListenSocket); // No longer need server socket.
 }
 
 void Network::ListenConnection()
@@ -93,19 +99,22 @@ void Network::ListenConnection()
 	while(true)
 	{
 		SOCKET* ClientSocket = new SOCKET(INVALID_SOCKET);
-
-		*ClientSocket = accept(ListenSocket, NULL, NULL); // Wait for client socket.
+		*ClientSocket = accept(Network::ListenSocket, NULL, NULL); // Blocking call waiting for client socket.
 
 		if(*ClientSocket == INVALID_SOCKET) // Error initialising the socket.
+		{
 			printf("ListenConnection failed with error: %d\n", WSAGetLastError());
-		else
+		}
+		else // Initialise new player with created socket.
 		{
 			Player* player = new Player(ClientSocket);
-			//players.push_back(player); // Create new player upon successful connection.
-			PushPlayer(player);
+			LOCK->lock();
+			PLAYERS.push_back(player); // Create new player upon successful connection.
+			LOCK->unlock();
 			std::cout << "New player connected ID(" << player->ID << ")." << std::endl;
 
 			std::thread message_thread(&Network::ListenMessage, this, player); // Start new thread for communication.
+			message_thread.detach();
 		}
 	}
 }
@@ -114,39 +123,45 @@ void Network::ListenMessage(Player* player)
 {
 	std::cout << "Starting ListenMessage for ID(" << player->ID << ")." << std::endl;
 
-	int iResult;
-	char recvbuf[DEFAULT_BUFLEN] = {0}; // Buffer for messages.
-	int recvbuflen = DEFAULT_BUFLEN; // Length of buffer.
-	SOCKET* socket = player->GetSocket();
+	SOCKET* socket = player->GetSocket(); // Handle to players socket.
 
-	// Condition needs to be remade later!
+	int receive_error = 0; // Keep track of networking errors.
+
 	while(true) // Receive messages until the peer shuts down the connection.
 	{
-		//iResult = 0;
-		//memset(recvbuf, '\0', recvbuflen);
+		char* recvbuf = new char[DEFAULT_BUFLEN](); // Buffer for messages.
 
-		iResult = recv(*socket, recvbuf, recvbuflen, 0); // Receive message from client.
+		int iResult = recv(*socket, recvbuf, DEFAULT_BUFLEN, 0); // Receive message from client.
 
 		if(iResult > 0) // If receiving message was successfull.
 		{
-			std::string message(recvbuf); // Make std::string out of received message.
-			message.resize(iResult);
-			std::cout << "(" << player->ID << "): " << message << std::endl; // Print received message.
+			// printf("(%i): %s \n", player->ID, recvbuf); Confirmation message moved to function below.
+			player->AddMessage(recvbuf); // Message added to queue and deleted.
 		}
 		else if(iResult == 0)
 		{
 			std::cout << "Connection closing for ID(" << player->ID << ")." << std::endl;
-			// Need to add cleaning later.
+			player->lost_connection = true;
+			delete recvbuf;
+			break; // Stop listening for messages.
 		}
-		else 
+		else
 		{
 			std::cout << "RECEIVE failed from ID(" << player->ID << "): " << WSAGetLastError() << std::endl;
-			std::this_thread::sleep_for(std::chrono::seconds(2));
+			receive_error++;
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+		}
+
+		if(receive_error > 3) // Problems with connection.
+		{
+			player->lost_connection = true;
+			delete recvbuf;
+			break; // Stop listening for messages.
 		}
 	}
 }
 
-void Network::SendMessages(Player* player)
+/*void Network::SendMessages(Player* player)
 {
 	//iSendResult = send(*player->GetSocket(), recvbuf, iResult, 0); // Echo the buffer back to the sender.
 	//if(iSendResult == SOCKET_ERROR)
@@ -156,18 +171,12 @@ void Network::SendMessages(Player* player)
 	//; // Temporary.
 	//else
 	//std::cout << "Possible connection problems with ID(" << player->ID << ")." << std::endl;
-}
+}*/
 
 void Network::Clean()
 {
 	WSACleanup(); // Possible functions needed to clean network functionality.
 }
-
-/*void Network::ClearBuffer(char(&buffer)[10])
-{
-	for(int i = 0; i < DEFAULT_BUFLEN; i++)
-		buffer[i] = '\0';
-}*/
 
 int Network::ConnectedPlayers()
 {
@@ -181,12 +190,80 @@ void Network::PushPlayer(Player* player)
 	players.push_back(player);
 }
 
-/*void Network::GetSocket(int ID)
+void Network::SendAll(std::string message)
 {
-	vector_lock.lock();
-	for(auto& p : players)
+	std::lock_guard<std::mutex> guard(*lock);
+
+	for(auto& player : players)
+		SendPlayer(player, message);
+}
+
+bool Network::SendPlayer(Player* player, std::string message)
+{
+	if(player->lost_connection)
+		return false;
+
+	// std::lock_guard<std::mutex> guard(*lock);
+
+	char* sendbuf = new char[DEFAULT_BUFLEN]();
+	strcpy(sendbuf, message.c_str());
+
+	int iResult = send(*player->GetSocket(), sendbuf, DEFAULT_BUFLEN, 0);
+	if(iResult == SOCKET_ERROR)
 	{
-		if(p->ID == player
+		printf("SEND failed to ID(%i) with error: %d \n", player->ID, WSAGetLastError());
+		player->lost_connection = true;
+		delete sendbuf;
+		return false;
+	}
+	
+	delete sendbuf;
+	return true;
+}
+
+void Network::LobbyCheck()
+{
+	std::lock_guard<std::mutex> guard(*lock);
+	for(auto it = players.begin(); it != players.end();)
+	{
+		if((*it)->lost_connection)
+		{
+			std::cout << "Player (" << (*it)->ID << ") has disconnected." << std::endl;
+			delete (*it); // Player cleans up after its own socket.
+			it = players.erase(it);
+		}
+		else
+			it++;
+	}
+}
+
+int Network::PlayerAmount()
+{
+	std::lock_guard<std::mutex> guard(*lock);
+	return PLAYERS.size();
+}
+
+int Network::UpdatePlayers()
+{
+	std::lock_guard<std::mutex> guard(*lock);
+
+	int playing = 0;
+	for(auto& player : players)
+	{
+		player->SetPlaying(true);
+		playing++;
 	}
 
-}*/
+	return playing;
+}
+
+void Network::ClearMessages()
+{
+	std::lock_guard<std::mutex> guard(*lock);
+	for(auto& player : players)
+		player->ClearMessages();
+}
+
+Network::~Network()
+{
+}

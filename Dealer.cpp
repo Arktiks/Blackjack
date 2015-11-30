@@ -9,6 +9,8 @@ Dealer::Dealer() : Player(nullptr)
 
 int Dealer::GiveCard()
 {
+	std::lock_guard<std::mutex> lock(deck_lock);
+
 	int card = deck.back();
 	std::cout << card << std::endl;
 	deck.pop_back();

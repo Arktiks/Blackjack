@@ -46,8 +46,6 @@ int main()
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	//hints.ai_addr = DEFAULT_SERVER;
-
 	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result); // Resolve the server address and port
 	if(iResult != 0)
 	{
@@ -111,14 +109,16 @@ int main()
 	closesocket(ConnectSocket);
 	WSACleanup();
 
-	fflush(stdin);
-	std::cin.get();
+	std::cout << "--- CLOSING GAME ---" << std::endl;
+	std::this_thread::sleep_for(std::chrono::seconds(5));
 
 	return 0;
 }
 
 void ReceiveMessages(SOCKET socket)
 {
+	std::cout << "Starting ReceiveMessages thread." << std::endl;
+
 	while(true)
 	{
 		char recvbuf[DEFAULT_BUFLEN] = {0}; // Buffer for messages.

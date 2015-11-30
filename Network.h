@@ -19,7 +19,7 @@ public:
 
 	Network(Network& network);
 
-	static std::vector<Player*> players; // Connected players.
+	static std::vector<Player*> players; // Players who have connected to game.
 
 	static SOCKET ListenSocket; // Socket initialised by CreateHost.
 
@@ -31,7 +31,7 @@ public:
 
 	void ListenMessage(Player* player); // Listen for possible messages from established clients.
 
-	void SendMessages(Player* player);
+	// void SendMessages(Player* player);
 
 	void Clean(); // Clean up networking functionality.
 
@@ -39,9 +39,17 @@ public:
 
 	void PushPlayer(Player* player); // Threadsafe push_back.
 
-	
+	void SendAll(std::string message); // Send all players a message.
+	 
+	bool SendPlayer(Player* player, std::string message); // Send single player a message.
 
-	// void ClearBuffer(char (&buffer)[10]); // Clear message buffer.
+	void LobbyCheck(); // See if there are disconnected players that should be deleted.
 
-	//void GetSocket(Player* player);
+	int PlayerAmount(); // Return how many players have connected to server.
+
+	int UpdatePlayers();
+
+	void ClearMessages();
+
+	~Network();
 };

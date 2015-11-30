@@ -96,3 +96,12 @@ ipch/
 *.psess
 *.vsp
 *.vspx
+
+# Visual C++ cache files
+ipch/
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+*.sdf
